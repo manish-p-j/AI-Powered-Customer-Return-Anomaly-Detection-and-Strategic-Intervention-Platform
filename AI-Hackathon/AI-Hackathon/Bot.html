@@ -1,0 +1,153 @@
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Excel Data Chatbot</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      padding: 20px;
+    }
+    h2, h3 {
+      color: #333;
+    }
+    input[type="file"] {
+      margin-bottom: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      background-color: #fff;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    th, td {
+      padding: 10px;
+      border: 1px solid #ddd;
+    }
+    th {
+      background-color: #007BFF;
+      color: white;
+    }
+    .chatbox {
+      margin-top: 40px;
+      background: #fff;
+      padding: 20px;
+      border: 1px solid #ccc;
+    }
+    .chatbox input {
+      width: 70%;
+      padding: 10px;
+      font-size: 14px;
+    }
+    .chatbox button {
+      padding: 10px 15px;
+      background-color: #007BFF;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    #response {
+      margin-top: 15px;
+      background: #f1f1f1;
+      padding: 10px;
+    }
+  </style>
+<script>
+    let excelData = [];
+
+    document.getElementById('excelFile').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+
+      reader.onload = function(e) {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        excelData = XLSX.utils.sheet_to_json(sheet);
+        renderTable(excelData);
+      };
+
+      reader.readAsArrayBuffer(file);
+    });
+
+    function renderTable(data) {
+      if (!data.length) return;
+
+      const keys = Object.keys(data[0]);
+      let html = '<table><thead><tr>';
+      keys.forEach(key => html += `<th>${key}</th>`);
+      html += '</tr></thead><tbody>';
+
+      data.forEach(row => {
+        html += '<tr>';
+        keys.forEach(key => html += `<td>${row[key] || ''}</td>`);
+        html += '</tr>';
+      });
+
+      html += '</tbody></table>';
+      document.getElementById('tableContainer').innerHTML = html;
+    }
+
+    function handleQuestion() {
+      const question = document.getElementById('userQuestion').value.toLowerCase();
+      const responseDiv = document.getElementById('response');
+
+      if (!excelData.length) {
+        responseDiv.innerHTML = "Please upload an Excel file first.";
+        return;
+      }
+
+      // Example logic
+      if (question.includes('total amount')) {
+        let total = 0;
+        excelData.forEach(row => {
+          let val = parseFloat(row['Amount'] || row['amount'] || 0);
+          if (!isNaN(val)) total += val;
+        });
+        responseDiv.innerHTML = `Total Amount: <strong>$${total.toFixed(2)}</strong>`;
+      } else if (question.includes('list products')) {
+        let products = new Set();
+        excelData.forEach(row => {
+          if (row['Product']) products.add(row['Product']);
+        });
+        responseDiv.innerHTML = `Products: <strong>${[...products].join(', ')}</strong>`;
+      } else if (question.includes('how many') && question.includes('records')) {
+        responseDiv.innerHTML = `Total Records: <strong>${excelData.length}</strong>`;
+      } else {
+        // Search by name
+        let found = excelData.filter(row => {
+          return Object.values(row).some(value =>
+            value && value.toString().toLowerCase().includes(question)
+          );
+        });
+
+        if (found.length > 0) {
+          let result = '<strong>Matching Records:</strong><br><ul>';
+          found.forEach(item => {
+            result += `<li>${JSON.stringify(item)}</li>`;
+          });
+          result += '</ul>';
+          responseDiv.innerHTML = result;
+        } else {
+          responseDiv.innerHTML = "Sorry, I couldn't find any data related to your question.";
+        }
+      }
+    }
+  </script>
+</head>
+<body>
+
+   <h2>Upload Excel File</h2>
+  <input type="file" id="excelFile" accept=".xlsx, .xls" />
+  <div id="tableContainer"></div>
+
+  <div class="chatbox">
+    <h3>Ask About the Data</h3>
+    <input type="text" id="userQuestion" placeholder="e.g. What is the total amount?" />
+    <button onclick="handleQuestion()">Ask</button>
+    <div id="response"></div>
+  </div>
+</body>
+</html>
